@@ -138,8 +138,8 @@ pip install -r requirements.txt
 ### 5.2. Chạy Streamlit
 
 ```bash
-cd frontend/c
-export $(grep -v '^#' ../../.env.local | xargs)
+cd frontend/streamlit
+export $(grep -v '^#' ../../.env | xargs)
 streamlit run app.py
 ```
 
