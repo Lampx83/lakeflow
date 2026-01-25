@@ -9,9 +9,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # =========================
-# Copy app
+# Copy toàn bộ source frontend
 # =========================
-COPY app.py .
+COPY . .
 
 # =========================
 # Streamlit config
