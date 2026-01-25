@@ -205,11 +205,11 @@ if EDUAI_MODE == "DEV":
     )
 
     PIPELINE_STEPS = [
-        ("000 – Ingest Inbox", "step0"),
-        ("200 – PDF Staging", "step1"),
-        ("300 – Processed Data", "step2"),
-        ("400 – Embeddings", "step3"),
-        ("401 – Qdrant Ingest", "step4"),
+        ("000 – Inbox Ingestion", "step0"),
+        ("200 – File Staging", "step1"),
+        ("300 – Data Processing", "step2"),
+        ("400 – Embedding Generation", "step3"),
+        ("401 – Qdrant Indexing", "step4"),
     ]
 
     for label, step in PIPELINE_STEPS:

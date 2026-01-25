@@ -6,7 +6,13 @@ from pathlib import Path
 
 router = APIRouter()
 
-SCRIPTS_DIR = Path("/app/src/eduai/scripts")
+from pathlib import Path
+
+SCRIPTS_DIR = (
+    Path(__file__).resolve()
+    .parents[1]      # eduai/
+    / "scripts"
+)
 
 ALLOWED = {
     "step0": "step0_inbox.py",
@@ -35,7 +41,7 @@ def run_step(step: str):
             capture_output=True,
             text=True,
             env=env,
-            cwd="/app",
+            cwd=Path(__file__).resolve().parents[3],
             timeout=60 * 60,  # 1h tuỳ nhu cầu
         )
     except subprocess.TimeoutExpired:

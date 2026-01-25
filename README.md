@@ -39,7 +39,7 @@ docker compose version
 Sao chép file mẫu:
 
 ```bash
-cp env.example .env
+cp env.example .env.local
 ```
 
 Chỉnh sửa `.env` theo cấu hình mong muốn (port, database, API key, … nếu có).
