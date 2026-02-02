@@ -1,7 +1,18 @@
 import os
+import socket
 from pathlib import Path
 
-API_BASE = os.getenv("API_BASE_URL", "http://eduai-backend:8011")
+def _resolve_api_base() -> str:
+    base = os.getenv("API_BASE_URL", "http://localhost:8011")
+    # Khi chạy dev trên host, "eduai-backend" không resolve → dùng localhost
+    if "eduai-backend" in base:
+        try:
+            socket.gethostbyname("eduai-backend")
+        except socket.gaierror:
+            base = "http://localhost:8011"
+    return base
+
+API_BASE = _resolve_api_base()
 EDUAI_MODE = os.getenv("EDUAI_MODE", "DEV")
 
 # =========================

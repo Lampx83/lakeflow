@@ -1,5 +1,7 @@
 import streamlit as st
+import streamlit.components.v1 as components
 
+from config.settings import EDUAI_MODE
 from state.session import init_session, is_logged_in
 from state.navigation import init_navigation, set_page, get_page
 from state.token_store import clear_token
@@ -7,6 +9,7 @@ from state.token_store import clear_token
 from pages import (
     login,
     semantic_search,
+    qa,
     pipeline_runner,
     data_lake_explorer,
     system_settings,
@@ -63,6 +66,7 @@ with st.sidebar:
         st.button("🚀 Pipeline Runner", on_click=set_page, args=("pipeline_runner",), use_container_width=True)
         st.button("🧠 Qdrant Inspector", on_click=set_page, args=("qdrant_inspector",), use_container_width=True)
         st.button("🔎 Semantic Search", on_click=set_page, args=("semantic_search",), use_container_width=True)
+        st.button("🤖 Hỏi đáp với AI", on_click=set_page, args=("qa",), use_container_width=True)
         st.button("⚙️ System Settings", on_click=set_page, args=("system_settings",), use_container_width=True)
 
 
@@ -75,6 +79,8 @@ if page == "login":
     login.render()
 elif page == "semantic_search":
     semantic_search.render()
+elif page == "qa":
+    qa.render()
 elif page == "pipeline_runner":
     pipeline_runner.render()
 elif page == "data_lake_explorer":
@@ -85,3 +91,25 @@ elif page == "qdrant_inspector":
     qdrant_inspector.render()
 else:
     st.error(f"Unknown page: {page}")
+
+# Dev: khi server restart (dev_with_reload), tự refresh trang khi thấy server chạy lại
+if EDUAI_MODE == "DEV":
+    _auto_reload_js = """
+    <script>
+    (function() {
+        var serverDown = false;
+        var check = function() {
+            fetch(window.parent.location.href, { method: 'HEAD', cache: 'no-store' })
+                .then(function() {
+                    if (serverDown) {
+                        serverDown = false;
+                        window.parent.location.reload();
+                    }
+                })
+                .catch(function() { serverDown = true; });
+        };
+        setInterval(check, 1500);
+    })();
+    </script>
+    """
+    components.html(_auto_reload_js, height=0)

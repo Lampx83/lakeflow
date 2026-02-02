@@ -65,33 +65,39 @@ def render():
         return
 
     st.subheader("📊 Collection Overview")
+    st.caption(
+        "Thông tin tổng quan: **Points** = tổng số vector; **Indexed** = số vector đã index; **Segments** = số segment; "
+        "**Vector size** = chiều vector; **Distance** = hàm khoảng cách (Cosine, Euclid, …); **Status** = trạng thái collection."
+    )
 
     points_count = detail.get("points_count", 0)
+    indexed_count = detail.get("indexed_vectors_count", 0)
+    segments_count = detail.get("segments_count", 0)
+    status = detail.get("status", "—")
+    coll_name = detail.get("name", col_name)
 
     vectors = detail.get("vectors", {})
     vector_size = "—"
     distance = "—"
-
     if isinstance(vectors, dict) and vectors:
         first = next(iter(vectors.values()))
         vector_size = first.get("size", "—")
         distance = first.get("distance", "—")
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Points", points_count)
-    c2.metric("Vector size", vector_size)
-    c3.metric("Distance", distance)
+    st.text(f"📦 {coll_name}  •  Status: {status}")
 
-    # -------------------------------------------------
-    # COLLECTION DETAIL
-    # -------------------------------------------------
-    try:
-        detail = get_collection_detail(col_name, token)
-    except Exception as exc:
-        st.error(f"Lỗi khi lấy collection detail: {exc}")
-        return
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Points", points_count)
+    c2.metric("Indexed", indexed_count)
+    c3.metric("Segments", segments_count)
+    c4.metric("Vector size", vector_size)
+    c5.metric("Distance", distance)
 
     st.subheader("🧱 Payload Schema")
+    st.caption(
+        "Cấu trúc metadata gắn với mỗi point (key → kiểu dữ liệu). Payload dùng để lọc và hiển thị, không dùng khi tính khoảng cách vector. "
+        "Schema được suy ra từ mẫu dữ liệu trong collection."
+    )
     st.json(detail.get("payload_schema", {}))
 
     # =================================================
@@ -99,6 +105,10 @@ def render():
     # =================================================
     st.divider()
     st.subheader("🔍 Filter points (payload)")
+    st.caption(
+        "Lọc points theo metadata (payload). Điền **file_hash**, **section_id** hoặc **chunk_id** rồi bật \"Áp dụng filter\" "
+        "để chỉ xem các point thỏa điều kiện; để trống = không lọc theo trường đó."
+    )
 
     f1, f2, f3 = st.columns(3)
 
@@ -123,6 +133,11 @@ def render():
     # =================================================
     st.divider()
     st.subheader("📄 Browse points")
+    st.caption(
+        "Duyệt points theo trang: **Số point / trang** = bao nhiêu bản ghi mỗi lần; "
+        "**Offset** = bỏ qua bao nhiêu point từ đầu collection rồi mới lấy. "
+        "Ví dụ: Offset 0 + 50/trang → trang 1; Offset 50 + 50/trang → trang 2."
+    )
 
     p1, p2 = st.columns(2)
 
@@ -133,14 +148,16 @@ def render():
             max_value=MAX_PAGE_SIZE,
             value=DEFAULT_PAGE_SIZE,
             step=10,
+            help="Số point tối đa trả về mỗi lần (kích thước trang).",
         )
 
     with p2:
         offset = st.number_input(
-            "Offset",
+            "Offset (bỏ qua N point đầu)",
             min_value=0,
             step=limit,
             value=0,
+            help="Số point bỏ qua từ đầu collection trước khi lấy. Offset=0 là trang 1, Offset=limit là trang 2, Offset=2×limit là trang 3, ...",
         )
 
     # -------------------------------------------------
@@ -175,17 +192,45 @@ def render():
     # =================================================
     # TABLE VIEW
     # =================================================
+    # Chiều vector lấy từ collection (mọi point trong collection cùng dimension; API không trả vector khi scroll)
+    collection_vector_size = None
+    if detail.get("vectors"):
+        first_vec = next(iter(detail["vectors"].values()), None)
+        if first_vec and "size" in first_vec:
+            collection_vector_size = first_vec["size"]
+
+    # Thu thập mọi key payload (thứ tự ưu tiên rồi alphabet)
+    known_order = ("file_hash", "chunk_id", "section_id", "token_estimate", "text", "content", "source")
+    all_keys = set()
+    for p in points:
+        all_keys.update((p.get("payload") or {}).keys())
+    ordered_keys = [k for k in known_order if k in all_keys]
+    ordered_keys += sorted(all_keys - set(ordered_keys))
+
+    def _preview(val, max_len=80):
+        if val is None:
+            return None
+        s = str(val)
+        return (s[:max_len] + "…") if len(s) > max_len else s
+
+    st.caption(
+        "Bảng hiển thị **id**, toàn bộ **payload** (text/content rút gọn 80 ký tự), **vector_dim**. "
+        "Chi tiết đầy đủ từng point ở phần bên dưới."
+    )
     rows = []
     for p in points:
-        payload = p.get("payload", {})
-
-        rows.append({
-            "id": p.get("id"),
-            "file_hash": payload.get("file_hash"),
-            "chunk_id": payload.get("chunk_id"),
-            "section_id": payload.get("section_id"),
-            "vector_dim": p.get("vector_size"),
-        })
+        payload = p.get("payload") or {}
+        row = {"id": p.get("id")}
+        for k in ordered_keys:
+            v = payload.get(k)
+            if k in ("text", "content") and isinstance(v, str):
+                row[k] = _preview(v, 80)
+            elif isinstance(v, str) and len(v) > 60:
+                row[k] = _preview(v, 60)
+            else:
+                row[k] = v
+        row["vector_dim"] = p.get("vector_size") or collection_vector_size
+        rows.append(row)
 
     df = pd.DataFrame(rows)
 
@@ -201,16 +246,31 @@ def render():
     selected_id = st.selectbox(
         "Chọn point",
         point_ids,
+        format_func=lambda x: str(x),
     )
 
     selected_point = next(
         p for p in points if p["id"] == selected_id
     )
 
-    with st.expander("📌 Payload"):
-        st.json(selected_point.get("payload", {}))
+    st.text(f"Point ID: {selected_point.get('id')}")
+    if selected_point.get("score") is not None:
+        st.text(f"Score: {selected_point.get('score')}")
+
+    payload = selected_point.get("payload") or {}
+    if payload:
+        st.caption("Payload (key → value)")
+        for k in sorted(payload.keys()):
+            v = payload[k]
+            if isinstance(v, str) and len(v) > 200:
+                st.text(f"  {k}: {v[:200]}…")
+            else:
+                st.text(f"  {k}: {v}")
+
+    with st.expander("📌 Payload (JSON)"):
+        st.json(payload)
 
     with st.expander("🧠 Vector info"):
-        st.write(f"Vector dimension: {selected_point.get('vector_size')}")
+        st.write(f"Vector dimension: {collection_vector_size or selected_point.get('vector_size') or '—'}")
 
     st.caption("⚠️ Vector raw không được hiển thị để đảm bảo hiệu năng & an toàn")
