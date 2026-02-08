@@ -59,6 +59,7 @@ services:
 # =========================
 # Volumes
 # =========================
+# Local (dev): lakeflow_data = Synology Drive. Server: dùng docker-compose.deploy.yml → /datalake/research
 volumes:
   lakeflow_data:
     driver: local

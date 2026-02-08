@@ -1,7 +1,10 @@
 # Override dùng khi deploy lên server (chạy cùng docker-compose.yml)
 # Ví dụ: docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --build
 #
-# - lakeflow_data: named volume (không bind path Mac/Linux cụ thể)
+# Data lake path:
+#   Local (dev): docker-compose.yml → /Users/mac/Library/CloudStorage/SynologyDrive-research
+#   Server:      docker-compose.deploy.yml → /datalake/research
+#
 # - Backend: bỏ mount source, bỏ --reload
 # - Frontend: bỏ mount ./backend
 
@@ -15,8 +18,11 @@ services:
     volumes:
       - lakeflow_data:/data
 
-# Ghi đè volume: dùng named volume chuẩn (không bind path Mac từ docker-compose.yml)
+# Ghi đè volume: bind mount /datalake/research trên server (tránh path Mac từ docker-compose.yml)
 volumes:
   lakeflow_data:
     driver: local
-    # Không dùng driver_opts → volume nằm trong /var/lib/docker/volumes/ trên server
+    driver_opts:
+      type: none
+      o: bind
+      device: /datalake/research

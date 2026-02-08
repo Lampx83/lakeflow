@@ -181,13 +181,13 @@ Vào **Settings → Secrets and variables → Actions**, thêm **Actions secrets
 Sau khi lưu secrets, mỗi lần bạn **push lên `main`**, workflow **Deploy** sẽ chạy: SSH vào server → `cd <DEPLOY_REPO_DIR>` → `git pull origin main` → `docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --build`.
 
 - **Lưu ý:** Trên server cần cấu hình Git (nếu clone bằng HTTPS thì `git pull` không cần key; nếu clone bằng SSH thì server cần có deploy key hoặc dùng HTTPS).
-- **Data:** File `docker-compose.deploy.yml` dùng **named volume** `lakeflow_data` (không bind path host). Dữ liệu nằm trong volume Docker; cần backup hoặc mount path cụ thể nếu muốn lưu ra ổ đĩa.
-- **Lỗi mount "no such file or directory" / SynologyDrive:** Nếu volume cũ đang trỏ vào path Mac, trên server chạy **một lần** để xóa volume cũ rồi deploy lại:
+- **Data:** Deploy dùng bind mount **`/datalake/research`** trên server làm data lake. Workflow tự chạy `sudo mkdir -p /datalake/research` trước khi `docker compose up`. Trên server, user deploy cần có quyền tạo thư mục (sudo không hỏi mật khẩu, hoặc tạo sẵn một lần: `sudo mkdir -p /datalake/research && sudo chown $USER:$USER /datalake/research`). Nếu dùng team share, mount nó tại `/datalake/research`.
+- **Lỗi mount "SynologyDrive" / "no such file or directory":** Nếu volume cũ vẫn trỏ path Mac, trên server chạy **một lần** rồi push lại:
   ```bash
-  cd ~/lakeflow  # hoặc DEPLOY_REPO_DIR của bạn
+  cd ~/lakeflow
   docker compose -f docker-compose.yml -f docker-compose.deploy.yml down -v
   ```
-  Sau đó push lại lên `main` (workflow sẽ chạy `up -d --build` và tạo volume mới đúng). Lưu ý `-v` sẽ xóa dữ liệu trong volume.
+  Lần deploy tiếp theo sẽ tạo volume mới gắn với `/datalake/research`. Dữ liệu cũ trong volume bị xóa khi `down -v`.
 
 ---
 
