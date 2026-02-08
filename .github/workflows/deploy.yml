@@ -1,6 +1,7 @@
 # Deploy lên server Ubuntu mỗi khi push lên main
 # Secrets bắt buộc: DEPLOY_HOST, DEPLOY_USER, SSH_PRIVATE_KEY
-# Tùy chọn: DEPLOY_SSH_PORT (nếu SSH không dùng 22, ví dụ 8901), DEPLOY_REPO_DIR (mặc định ~/lakeflow)
+# Tùy chọn: DEPLOY_SSH_PORT, DEPLOY_REPO_DIR, OPENAI_API_KEY (ghi vào .env trên server khi deploy)
+# Trên server: file .env phải có (API_BASE_URL, QDRANT_HOST, ...). OPENAI_API_KEY từ GitHub Secret sẽ được ghi vào .env nếu khai báo.
 
 name: Deploy
 
@@ -17,6 +18,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           REPO_DIR: ${{ secrets.DEPLOY_REPO_DIR }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
@@ -28,5 +30,11 @@ jobs:
             cd "$REPO_DIR"
             git pull origin main
             export LAKEFLOW_DATA_PATH=/datalake/research
+            if [ -n "${OPENAI_API_KEY:-}" ]; then
+              touch .env
+              grep -v '^OPENAI_API_KEY=' .env > .env.tmp 2>/dev/null || true
+              mv .env.tmp .env
+              echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> .env
+            fi
             docker compose -f docker-compose.yml -f docker-compose.deploy.yml down -v
             docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --build
