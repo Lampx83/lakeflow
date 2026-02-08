@@ -36,5 +36,8 @@ jobs:
               mv .env.tmp .env
               echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> .env
             fi
+            # Backend Dockerfile cần BuildKit (torch CPU trước, cache mount). Bắt buộc để không tải CUDA ~2GB.
+            export DOCKER_BUILDKIT=1
+            export COMPOSE_DOCKER_CLI_BUILD=1
             docker compose -f docker-compose.yml -f docker-compose.deploy.yml down -v
             docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --build

@@ -49,6 +49,9 @@ docker compose up --build
 
 Data lake root is the `lakeflow_data` volume (or path you set). Create zones manually if needed: `000_inbox`, `100_raw`, `200_staging`, `300_processed`, `400_embeddings`, `500_catalog`.
 
+**Docker build (server không GPU):** Image backend mặc định dùng **PyTorch CPU-only** (không kéo CUDA/nvidia-* ~2GB), build nhanh. Cần `DOCKER_BUILDKIT=1` (GitHub Actions và deploy script đã set). Build local: `DOCKER_BUILDKIT=1 docker compose up --build`.  
+**Mac M1 dev dùng GPU (Metal/MPS):** Trong Docker container chạy Linux nên không dùng được Metal. Để tận dụng GPU trên MacBook M1, chạy backend **bằng venv trên macOS** (xem mục Development bên dưới): `pip install torch` rồi `pip install -r requirements.txt` → PyTorch sẽ dùng MPS.
+
 ---
 
 ## Project structure
@@ -86,11 +89,13 @@ See `.env.example` for a full template.
 
 ## Development (without Docker)
 
-1. **Backend** (from repo root):
+1. **Backend** (from repo root). **Mac M1:** cài `torch` trước để dùng GPU Metal (MPS), rồi mới cài requirements.
    ```bash
    cd backend
    python3 -m venv .venv
    source .venv/bin/activate   # Windows: .venv\Scripts\activate
+   # Mac M1: cài torch trước → PyTorch dùng GPU Metal (MPS)
+   pip install torch
    pip install -r requirements.txt && pip install -e .
    # Ensure .env is in repo root with LAKEFLOW_DATA_BASE_PATH, QDRANT_HOST, API_BASE_URL
    python -m uvicorn lakeflow.main:app --reload --port 8011
