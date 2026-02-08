@@ -15,5 +15,8 @@ services:
     volumes:
       - lakeflow_data:/data
 
+# Ghi đè volume: dùng named volume chuẩn (không bind path Mac từ docker-compose.yml)
 volumes:
-  lakeflow_data: {}
+  lakeflow_data:
+    driver: local
+    # Không dùng driver_opts → volume nằm trong /var/lib/docker/volumes/ trên server

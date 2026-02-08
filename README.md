@@ -182,6 +182,12 @@ Sau khi lưu secrets, mỗi lần bạn **push lên `main`**, workflow **Deploy*
 
 - **Lưu ý:** Trên server cần cấu hình Git (nếu clone bằng HTTPS thì `git pull` không cần key; nếu clone bằng SSH thì server cần có deploy key hoặc dùng HTTPS).
 - **Data:** File `docker-compose.deploy.yml` dùng **named volume** `lakeflow_data` (không bind path host). Dữ liệu nằm trong volume Docker; cần backup hoặc mount path cụ thể nếu muốn lưu ra ổ đĩa.
+- **Lỗi mount "no such file or directory" / SynologyDrive:** Nếu volume cũ đang trỏ vào path Mac, trên server chạy **một lần** để xóa volume cũ rồi deploy lại:
+  ```bash
+  cd ~/lakeflow  # hoặc DEPLOY_REPO_DIR của bạn
+  docker compose -f docker-compose.yml -f docker-compose.deploy.yml down -v
+  ```
+  Sau đó push lại lên `main` (workflow sẽ chạy `up -d --build` và tạo volume mới đúng). Lưu ý `-v` sẽ xóa dữ liệu trong volume.
 
 ---
 
