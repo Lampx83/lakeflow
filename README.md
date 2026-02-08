@@ -159,7 +159,7 @@ Workflow `.github/workflows/deploy.yml` sẽ SSH vào server Ubuntu, `git pull` 
    cp .env.example .env
    nano .env
    ```
-   Điền ít nhất: `LAKEFLOW_DATA_BASE_PATH=/data`, `QDRANT_HOST=lakeflow-qdrant`, `API_BASE_URL=http://<IP-server>:8011` (hoặc domain của bạn).
+   Điền ít nhất: `LAKEFLOW_DATA_BASE_PATH=/data`, `QDRANT_HOST=lakeflow-qdrant`, `API_BASE_URL=http://lakeflow-backend:8011` (frontend trong Docker gọi backend qua tên service; không dùng IP server ở đây).
 
 4. **SSH key để GitHub Actions đẩy code**
    - Trên server tạo key (nếu chưa có): `ssh-keygen -t ed25519 -C "deploy" -f ~/.ssh/deploy_lakeflow -N ""`
@@ -181,13 +181,14 @@ Vào **Settings → Secrets and variables → Actions**, thêm **Actions secrets
 Sau khi lưu secrets, mỗi lần bạn **push lên `main`**, workflow **Deploy** sẽ chạy: SSH vào server → `cd <DEPLOY_REPO_DIR>` → `git pull origin main` → `docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --build`.
 
 - **Lưu ý:** Trên server cần cấu hình Git (nếu clone bằng HTTPS thì `git pull` không cần key; nếu clone bằng SSH thì server cần có deploy key hoặc dùng HTTPS).
-- **Data:** Deploy dùng bind mount **`/datalake/research`** trên server làm data lake. Workflow tự chạy `sudo mkdir -p /datalake/research` trước khi `docker compose up`. Trên server, user deploy cần có quyền tạo thư mục (sudo không hỏi mật khẩu, hoặc tạo sẵn một lần: `sudo mkdir -p /datalake/research && sudo chown $USER:$USER /datalake/research`). Nếu dùng team share, mount nó tại `/datalake/research`.
+- **Data:** Deploy dùng bind mount **`/datalake/research`** trên server làm data lake. Trên server cần tạo sẵn thư mục (vd. `sudo mkdir -p /datalake/research && sudo chown $USER:$USER /datalake/research`). Nếu dùng team share, mount nó tại `/datalake/research`.
 - **Lỗi mount "SynologyDrive" / "no such file or directory":** Nếu volume cũ vẫn trỏ path Mac, trên server chạy **một lần** rồi push lại:
   ```bash
   cd ~/lakeflow
   docker compose -f docker-compose.yml -f docker-compose.deploy.yml down -v
   ```
   Lần deploy tiếp theo sẽ tạo volume mới gắn với `/datalake/research`. Dữ liệu cũ trong volume bị xóa khi `down -v`.
+- **Login báo "Connection refused" (lakeflow-backend:8011):** Frontend chỉ start sau khi backend healthy. Nếu vẫn lỗi: (1) Kiểm tra `.env` trên server có `API_BASE_URL=http://lakeflow-backend:8011`; (2) Xem log backend: `docker logs lakeflow-backend` (backend crash sẽ không lên được /health).
 
 ---
 

@@ -12,9 +12,9 @@ from lakeflow.api.system import router as system_router
 from lakeflow.api.qdrant import router as qdrant_router
 from lakeflow.api.admin import router as admin_router
 
+import os
 from pathlib import Path
 from lakeflow.runtime.config import runtime_config
-from lakeflow.config.env import get_env
 
 
 
@@ -42,12 +42,10 @@ def create_app() -> FastAPI:
     # ==================================================
     # BOOTSTRAP DATA_BASE_PATH (CRITICAL)
     # ==================================================
-    try:
-        base = Path(get_env("LAKEFLOW_DATA_BASE_PATH")).resolve()
-        runtime_config.set_data_base_path(base)
-        print(f"[BOOT] DATA_BASE_PATH1 = {base}")
-    except Exception as exc:
-        print(f"[BOOT] DATA_BASE_PATH not set: {exc}")
+    base_str = os.getenv("LAKEFLOW_DATA_BASE_PATH", "/data")
+    base = Path(base_str).expanduser().resolve()
+    runtime_config.set_data_base_path(base)
+    print(f"[BOOT] DATA_BASE_PATH = {base}")
 
     # -------------------------
     # Routers
