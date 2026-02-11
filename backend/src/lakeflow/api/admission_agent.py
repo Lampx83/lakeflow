@@ -3,6 +3,7 @@ Tro ly (Agent) Admission - API tuong thich Research Agent: /metadata, /data, /as
 Su dung Qwen3 8b, du lieu tu collection "Admission" trong Qdrant.
 """
 
+import time
 import requests
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -219,12 +220,16 @@ Tra loi (chi dua tren context tren):"""
     if OPENAI_API_KEY:
         headers["Authorization"] = f"Bearer {OPENAI_API_KEY}"
 
+    t0 = time.time()
     try:
         llm_resp = requests.post(chat_url, json=llm_payload, headers=headers, timeout=60)
         llm_resp.raise_for_status()
         llm_data = llm_resp.json()
         answer = llm_data["choices"][0]["message"]["content"]
         model_used = llm_data.get("model", LLM_MODEL)
+        usage = llm_data.get("usage", {})
+        prompt_tokens = usage.get("prompt_tokens")
+        completion_tokens = usage.get("completion_tokens")
     except requests.RequestException as exc:
         raise HTTPException(
             status_code=500,
@@ -236,8 +241,23 @@ Tra loi (chi dua tren context tren):"""
             detail=f"Phan hoi LLM khong hop le: {exc}",
         )
 
+    response_time_ms = int((time.time() - t0) * 1000)
+    tokens_used = None
+    if prompt_tokens is not None and completion_tokens is not None:
+        tokens_used = prompt_tokens + completion_tokens
+
+    # Format tuong thich Research Chat: status, content_markdown, meta
     return {
+        "session_id": req.session_id,
+        "status": "success",
+        "content_markdown": answer,
+        "meta": {
+            "model": model_used,
+            "response_time_ms": response_time_ms,
+            "tokens_used": tokens_used,
+        },
+        "attachments": [],
+        # Giu them cho client LakeFlow neu can
         "answer": answer,
         "contexts": contexts,
-        "model_used": model_used,
     }
