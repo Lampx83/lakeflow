@@ -56,9 +56,12 @@ def render():
             st.info("Chưa có lịch sử. Hỏi AI để lưu vào đây.")
         else:
             for i, item in enumerate(reversed(history_list[-50:])):  # 50 gần nhất
-                created = item.get("created_at", "")
-                q = item.get("question", "")[:60] + ("…" if len(item.get("question", "")) > 60 else "")
-                with st.expander(f"{created} — {q}", expanded=False):
+                raw_created = item.get("created_at", "")
+                created = str(raw_created)[:19] if raw_created else ""
+                raw_q = item.get("question", "") or ""
+                q = (raw_q[:60] + "...") if len(raw_q) > 60 else raw_q
+                label = f"{created} - {q}" if (created or q) else f"Lich su #{i+1}"
+                with st.expander(label, expanded=False, key=f"qa_history_{i}"):
                     st.write("**Câu hỏi:**")
                     st.write(item.get("question", ""))
                     st.write("**Trả lời:**")
