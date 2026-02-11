@@ -1,7 +1,11 @@
-import requests
-from config.settings import API_BASE, DATA_ROOT
+import hashlib
+import sqlite3
 from pathlib import Path
 from typing import Optional
+
+import requests
+
+from config.settings import API_BASE, DATA_ROOT
 
 # Bước nào dùng cây thư mục (chọn con/cháu); bước còn lại dùng danh sách phẳng (file_hash)
 STEPS_WITH_TREE = ("step0", "step1", "step2", "step3", "step4")
@@ -43,6 +47,115 @@ def get_pipeline_folder_children(step: str, relative_path: str = "") -> list[tup
     except (PermissionError, OSError):
         pass
     return out
+
+
+def get_pipeline_folder_files(step: str, relative_path: str = "") -> list[tuple[str, int]]:
+    """
+    Trả về danh sách file trong thư mục: [(tên file, size_bytes)].
+    relative_path = "" là gốc zone; "domain" hoặc "domain/hash" là con.
+    """
+    root = Path(DATA_ROOT)
+    if step == "step0":
+        base = root / "000_inbox"
+    elif step == "step1":
+        base = root / "100_raw"
+    elif step == "step2":
+        base = root / "200_staging"
+    elif step == "step3":
+        base = root / "300_processed"
+    elif step == "step4":
+        base = root / "400_embeddings"
+    else:
+        return []
+    if not base.exists():
+        return []
+    path = base / relative_path if relative_path else base
+    if not path.exists() or not path.is_dir():
+        return []
+    out = []
+    try:
+        for p in sorted(path.iterdir(), key=lambda x: x.name.lower()):
+            if p.name.startswith("."):
+                continue
+            if p.is_file():
+                try:
+                    out.append((p.name, p.stat().st_size))
+                except OSError:
+                    out.append((p.name, 0))
+    except (PermissionError, OSError):
+        pass
+    return out
+
+
+def get_pipeline_file_step_done(step: str, relative_path: str, file_name: str) -> str:
+    """
+    Trả về "✓" nếu file (hoặc thư mục hiện tại) đã được xử lý xong ở bước này, "" nếu chưa, "?" nếu không xác định (vd. step4).
+    step0: file inbox → đã ingest (hash trong raw_objects)
+    step1: file trong 100_raw → đã staging (200_staging/.../validation.json)
+    step2: file trong 200_staging → đã processing (300_processed/.../chunks.json) — theo thư mục
+    step3: file trong 300_processed → đã embedding (400_embeddings/.../embedding.npy) — theo thư mục
+    step4: không có catalog → "?"
+    """
+    root = Path(DATA_ROOT)
+    rel = relative_path.strip("/").replace("\\", "/")
+    parts = [p for p in rel.split("/") if p] if rel else []
+
+    if step == "step0":
+        base = root / "000_inbox"
+        dir_path = (base / relative_path) if relative_path else base
+        file_path = dir_path / file_name
+        if not file_path.is_file():
+            return ""
+        try:
+            h = hashlib.sha256()
+            with file_path.open("rb") as f:
+                while chunk := f.read(1024 * 1024):
+                    h.update(chunk)
+            file_hash = h.hexdigest()
+        except (OSError, PermissionError):
+            return ""
+        db = root / "500_catalog" / "catalog.sqlite"
+        if not db.exists():
+            return ""
+        try:
+            conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+            cur = conn.execute("SELECT 1 FROM raw_objects WHERE hash = ? LIMIT 1", (file_hash,))
+            out = "✓" if cur.fetchone() else ""
+            conn.close()
+            return out
+        except Exception:
+            return ""
+
+    if step == "step1":
+        file_hash = Path(file_name).stem
+        staging_dir = root / "200_staging" / relative_path / file_hash if relative_path else root / "200_staging" / file_hash
+        alt = root / "200_staging" / file_hash
+        if (staging_dir / "validation.json").exists() or (alt / "validation.json").exists():
+            return "✓"
+        return ""
+
+    if step == "step2":
+        # Cả thư mục 200_staging/relative_path đã chạy bước 2 (→ 300_processed) chưa
+        if not relative_path:
+            return ""
+        check = root / "300_processed" / relative_path / "chunks.json"
+        alt = root / "300_processed" / parts[-1] / "chunks.json" if len(parts) == 1 else None
+        if check.exists() or (alt and alt.exists()):
+            return "✓"
+        return ""
+
+    if step == "step3":
+        if not relative_path:
+            return ""
+        check = root / "400_embeddings" / relative_path / "embedding.npy"
+        alt = root / "400_embeddings" / parts[-1] / "embedding.npy" if len(parts) == 1 else None
+        if check.exists() or (alt and alt.exists()):
+            return "✓"
+        return ""
+
+    if step == "step4":
+        return "?"
+    return ""
 
 
 def _get_pipeline_folders_fallback(step: str) -> list[str]:

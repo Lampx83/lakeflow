@@ -1,5 +1,6 @@
 # src/lakeflow/catalog/db.py
 import logging
+import os
 import sqlite3
 from pathlib import Path
 
@@ -8,10 +9,11 @@ log = logging.getLogger(__name__)
 
 def _ensure_db_ready(db_path: Path) -> None:
     """Đảm bảo thư mục tồn tại; xóa file rỗng hoặc khi path là thư mục (sai) để tạo DB mới."""
-    db_path = Path(db_path)
+    db_path = Path(db_path).resolve()
     parent = db_path.parent
-    parent.mkdir(parents=True, exist_ok=True)
-    log.debug("Catalog DB parent dir: %s", parent)
+    parent_str = os.path.abspath(str(parent))
+    os.makedirs(parent_str, exist_ok=True)
+    log.debug("Catalog DB parent dir: %s", parent_str)
 
     if not db_path.exists():
         log.debug("Catalog DB does not exist yet: %s", db_path)
@@ -32,12 +34,14 @@ def _ensure_db_ready(db_path: Path) -> None:
 
 def get_connection(db_path: Path) -> sqlite3.Connection:
     db_path = Path(db_path).resolve()
-    log.info("Catalog DB path: %s", db_path)
+    db_path_str = os.path.abspath(str(db_path))
+    log.info("Catalog DB path: %s", db_path_str)
     _ensure_db_ready(db_path)
 
     def _connect() -> sqlite3.Connection:
+        os.makedirs(os.path.dirname(db_path_str), exist_ok=True)
         conn = sqlite3.connect(
-            str(db_path),
+            db_path_str,
             timeout=30,
             isolation_level=None,
         )
@@ -47,6 +51,39 @@ def get_connection(db_path: Path) -> sqlite3.Connection:
 
     try:
         return _connect()
+    except sqlite3.OperationalError as e:
+        err_msg = str(e).lower()
+        if "unable to open database file" not in err_msg:
+            log.exception("Catalog DB error")
+            raise
+        dir_str = os.path.dirname(db_path_str)
+        log.warning("Catalog DB cannot be opened (path=%s), ensuring directory and retrying: %s", db_path_str, e)
+        os.makedirs(dir_str, mode=0o755, exist_ok=True)
+        try:
+            return _connect()
+        except sqlite3.OperationalError as e2:
+            fallback_dir = "/tmp/lakeflow_catalog"
+            fallback_path = os.path.join(fallback_dir, "catalog.sqlite")
+            log.warning(
+                "Không ghi được DB tại %s (quyền thư mục). Dùng fallback: %s (dữ liệu mất khi container tắt)",
+                db_path_str,
+                fallback_path,
+            )
+            os.makedirs(fallback_dir, mode=0o755, exist_ok=True)
+            try:
+                conn = sqlite3.connect(
+                    fallback_path,
+                    timeout=30,
+                    isolation_level=None,
+                )
+                conn.execute("PRAGMA journal_mode=DELETE;")
+                conn.execute("PRAGMA synchronous=FULL;")
+                return conn
+            except sqlite3.OperationalError as e3:
+                log.exception("Không mở được cả DB gốc và fallback.")
+                raise sqlite3.OperationalError(
+                    f"unable to open database file: {db_path_str}. Fallback {fallback_path} cũng lỗi: {e3}"
+                ) from e3
     except sqlite3.DatabaseError as e:
         err_msg = str(e).lower()
         if "malformed" not in err_msg:

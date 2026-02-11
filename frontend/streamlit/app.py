@@ -11,10 +11,11 @@ from pages import (
     semantic_search,
     qa,
     pipeline_runner,
+    pipeline_dashboard,
     data_lake_explorer,
+    sqlite_viewer,
     system_settings,
     qdrant_inspector,
-    admin,
 )
 
 
@@ -63,12 +64,13 @@ with st.sidebar:
     if is_logged_in():
         st.divider()
         # ---------- NAV (AUTHED) ----------
+        st.button("📊 Dashboard", on_click=set_page, args=("pipeline_dashboard",), use_container_width=True)
         st.button("📂 Data Lake Explorer", on_click=set_page, args=("data_lake_explorer",), use_container_width=True)
         st.button("🚀 Pipeline Runner", on_click=set_page, args=("pipeline_runner",), use_container_width=True)
+        st.button("🗄️ SQLite Viewer", on_click=set_page, args=("sqlite_viewer",), use_container_width=True)
         st.button("🧠 Qdrant Inspector", on_click=set_page, args=("qdrant_inspector",), use_container_width=True)
         st.button("🔎 Semantic Search", on_click=set_page, args=("semantic_search",), use_container_width=True)
         st.button("🤖 Hỏi đáp với AI", on_click=set_page, args=("qa",), use_container_width=True)
-        st.button("👤 Admin", on_click=set_page, args=("admin",), use_container_width=True)
         st.button("⚙️ System Settings", on_click=set_page, args=("system_settings",), use_container_width=True)
 
 
@@ -87,12 +89,16 @@ elif page == "pipeline_runner":
     pipeline_runner.render()
 elif page == "data_lake_explorer":
     data_lake_explorer.render()
+elif page == "pipeline_dashboard":
+    pipeline_dashboard.render()
+elif page == "sqlite_viewer":
+    sqlite_viewer.render()
 elif page == "system_settings":
     system_settings.render()
 elif page == "qdrant_inspector":
     qdrant_inspector.render()
 elif page == "admin":
-    admin.render()
+    pipeline_dashboard.render()
 else:
     st.error(f"Unknown page: {page}")
 

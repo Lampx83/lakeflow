@@ -13,7 +13,7 @@ from lakeflow.api.deps import get_embedding_model
 from lakeflow.core.auth import verify_token
 from lakeflow.catalog.app_db import insert_message
 from lakeflow.vectorstore.constants import COLLECTION_NAME as DEFAULT_COLLECTION_NAME
-from lakeflow.core.config import get_qdrant_url, OPENAI_API_KEY, OPENAI_MODEL, OPENAI_BASE_URL
+from lakeflow.core.config import get_qdrant_url, LLM_BASE_URL, LLM_MODEL, OPENAI_API_KEY
 
 router = APIRouter(
     prefix="/search",
@@ -122,7 +122,7 @@ def semantic_search(req: SemanticSearchRequest):
     "/qa",
     response_model=QAResponse,
 )
-def qa(req: QARequest, payload: dict = Depends(verify_token)):
+def qa(req: QARequest, auth_payload: dict = Depends(verify_token)):
     """
     Q&A với RAG: Tìm context từ semantic search, sau đó dùng LLM để trả lời.
     Tin nhắn (câu hỏi) được ghi theo username để thống kê trong Admin.
@@ -141,19 +141,19 @@ def qa(req: QARequest, payload: dict = Depends(verify_token)):
     coll = (req.collection_name or DEFAULT_COLLECTION_NAME).strip() or DEFAULT_COLLECTION_NAME
     url = f"{base}/collections/{coll}/points/search"
 
-    payload = {
+    search_body = {
         "vector": query_vector,
         "limit": req.top_k,
         "with_payload": True,
         "with_vector": False,
     }
     if req.score_threshold is not None:
-        payload["score_threshold"] = req.score_threshold
+        search_body["score_threshold"] = req.score_threshold
 
     try:
         resp = requests.post(
             url,
-            json=payload,
+            json=search_body,
             timeout=15,
         )
         resp.raise_for_status()
@@ -219,61 +219,47 @@ Câu hỏi: {req.question}
 Trả lời (chỉ dựa trên context trên):"""
     
     # --------------------------------------------------
-    # 3. Call OpenAI API (hoặc LLM khác)
+    # 3. Gọi LLM (Ollama proxy mặc định hoặc OpenAI)
     # --------------------------------------------------
-    if not OPENAI_API_KEY:
-        # Fallback: Trả về context nếu không có OpenAI key
-        return {
-            "question": req.question,
-            "answer": "⚠️ Chưa cấu hình OpenAI API key. Vui lòng thêm OPENAI_API_KEY vào file .env để sử dụng tính năng Q&A.\n\nDưới đây là các context tìm được:\n\n" + "\n\n---\n\n".join(context_texts[:3]),
-            "contexts": contexts,
-            "model_used": None,
-        }
-    
+    chat_url = f"{LLM_BASE_URL.rstrip('/')}/v1/chat/completions"
+    llm_payload = {
+        "model": LLM_MODEL,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": req.temperature,
+        "max_tokens": 1000,
+    }
+    headers = {"Content-Type": "application/json"}
+    if OPENAI_API_KEY:
+        headers["Authorization"] = f"Bearer {OPENAI_API_KEY}"
+
     try:
-        openai_url = f"{OPENAI_BASE_URL}/v1/chat/completions" if OPENAI_BASE_URL else "https://api.openai.com/v1/chat/completions"
-        
-        openai_payload = {
-            "model": OPENAI_MODEL,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            "temperature": req.temperature,
-            "max_tokens": 1000,
-        }
-        
-        headers = {
-            "Authorization": f"Bearer {OPENAI_API_KEY}",
-            "Content-Type": "application/json",
-        }
-        
-        openai_resp = requests.post(
-            openai_url,
-            json=openai_payload,
+        llm_resp = requests.post(
+            chat_url,
+            json=llm_payload,
             headers=headers,
-            timeout=30,
+            timeout=60,
         )
-        openai_resp.raise_for_status()
-        
-        openai_data = openai_resp.json()
-        answer = openai_data["choices"][0]["message"]["content"]
-        model_used = openai_data.get("model", OPENAI_MODEL)
-        
+        llm_resp.raise_for_status()
+        llm_data = llm_resp.json()
+        answer = llm_data["choices"][0]["message"]["content"]
+        model_used = llm_data.get("model", LLM_MODEL)
     except requests.RequestException as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"OpenAI API call failed: {exc}"
+            detail=f"LLM API call failed: {exc}",
         )
     except (KeyError, IndexError) as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Invalid OpenAI API response: {exc}"
+            detail=f"Invalid LLM API response: {exc}",
         )
 
     # Ghi tin nhắn theo user (để thống kê / xóa trong Admin)
     try:
-        insert_message(username=payload["sub"], question=req.question)
+        insert_message(username=auth_payload["sub"], question=req.question)
     except Exception:
         pass  # Không làm fail request Q&A nếu ghi DB lỗi
 

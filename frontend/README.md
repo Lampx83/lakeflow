@@ -41,17 +41,22 @@ Ensure `.env` in repo root has at least `API_BASE_URL`, `LAKEFLOW_DATA_BASE_PATH
 
 1. **Backend** and **Qdrant** must be running (see [backend/README.md](../backend/README.md)).
 2. From repo root, create/use `.env` with `API_BASE_URL=http://localhost:8011`, `LAKEFLOW_DATA_BASE_PATH=/path/to/your/data/lake`, and optional `QDRANT_HOST=localhost`.
-3. Start Streamlit:
+3. Chạy Streamlit (bắt buộc ở thư mục **frontend/streamlit** — file `requirements.txt` nằm tại đây):
+
+   **Cách A — Dùng venv (khuyến nghị, tránh lỗi quyền khi cài package):**
 
    ```bash
    cd frontend/streamlit
+   python3 -m venv .venv
+   source .venv/bin/activate          # Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
    export $(grep -v '^#' ../../.env | xargs)
    streamlit run app.py
    ```
 
-   Or from repo root: `python frontend/streamlit/dev_with_reload.py` (with `.env` loaded) for auto-reload on code change.
+   **Cách B — Từ repo root** (cần đã cài streamlit): `python frontend/streamlit/dev_with_reload.py` (tự load `.env`).
 
-- Default URL: http://localhost:8501 (unless overridden in config).
+- Mặc định: http://localhost:8501 (trừ khi đổi trong config).
 
 ---
 

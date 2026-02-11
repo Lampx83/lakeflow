@@ -58,12 +58,16 @@ QDRANT_API_KEY = os.getenv(
 QDRANT_URL = f"http://{QDRANT_HOST}:{QDRANT_PORT}"
 
 # =====================================================
-# OPENAI (Q&A / LLM)
+# LLM (Q&A / RAG) – Ollama proxy (mặc định) hoặc OpenAI
 # =====================================================
+# Mặc định: Ollama qua Research (LLM_BASE_URL + LLM_MODEL), không cần API key.
+# Để dùng OpenAI: set OPENAI_API_KEY (và tùy chọn OPENAI_BASE_URL, OPENAI_MODEL).
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "").strip() or None  # Azure/proxy; empty = official API
+_llm_base = (os.getenv("LLM_BASE_URL") or os.getenv("OLLAMA_BASE_URL") or "").strip()
+_openai_base = (os.getenv("OPENAI_BASE_URL") or "").strip()
+LLM_BASE_URL = _llm_base or _openai_base or "https://research.neu.edu.vn/ollama"
+LLM_MODEL = (os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL") or "qwen3:8b").strip()
+OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
 
 
 def get_qdrant_url(override: str | None = None) -> str:
@@ -72,7 +76,7 @@ def get_qdrant_url(override: str | None = None) -> str:
         return s if s.startswith("http://") or s.startswith("https://") else f"http://{s}"
     return QDRANT_URL
 
-# ==============================================# =====================================================
+# =====================================================
 # LOG BOOT INFO (DEV ONLY)
 # =====================================================
 
@@ -83,4 +87,4 @@ if DEBUG:
     print("[BOOT] JWT_ALGORITHM =", JWT_ALGORITHM)
     print("[BOOT] JWT_EXPIRE_MINUTES =", JWT_EXPIRE_MINUTES)
     print("[BOOT] QDRANT_URL =", QDRANT_URL)
-    print("[BOOT] OPENAI_MODEL =", OPENAI_MODEL, "OPENAI_API_KEY set =", bool(OPENAI_API_KEY))
+    print("[BOOT] LLM_BASE_URL =", LLM_BASE_URL, "LLM_MODEL =", LLM_MODEL, "OPENAI_API_KEY set =", bool(OPENAI_API_KEY))

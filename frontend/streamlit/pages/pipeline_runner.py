@@ -1,8 +1,11 @@
+import pandas as pd
 import streamlit as st
 from services.pipeline_service import (
     STEPS_WITH_TREE,
     get_pipeline_folders,
     get_pipeline_folder_children,
+    get_pipeline_folder_files,
+    get_pipeline_file_step_done,
     list_qdrant_collections,
     run_pipeline_step,
 )
@@ -20,12 +23,19 @@ STEPS = [
 MAX_TREE_DEPTH = 20
 
 
+def _format_size(size_bytes: int) -> str:
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    if size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+
 def _render_tree_node(step: str, relative_path: str, depth: int) -> None:
     """Hiển thị cây thư mục: ▶/▼ mở rộng (lazy), checkbox chọn thư mục con/cháu."""
     if depth >= MAX_TREE_DEPTH:
         return
     children = get_pipeline_folder_children(step, relative_path)
-    indent = "　" * depth  # full-width space
     sel_key = f"pipeline_selected_{step}"
     exp_key = f"pipeline_expanded_{step}"
     if sel_key not in st.session_state:
@@ -39,15 +49,20 @@ def _render_tree_node(step: str, relative_path: str, depth: int) -> None:
         safe_key = full_rel.replace("/", "_").replace("\\", "_") or "_root"
         is_expanded = full_rel in expanded_set
 
-        col_btn, col_cb, col_label = st.columns([0.4, 0.5, 4])
+        # Indent: thư mục con thụt vào; checkbox sát tên folder. Expand = tự động hiện file bên cạnh
+        indent_w = max(0.08, 0.15 * depth)
+        col_indent, col_btn, col_cb, col_label = st.columns([indent_w, 0.3, 0.25, 4])
+        with col_indent:
+            st.write("")
         with col_btn:
             if is_expanded:
                 if st.button("▼", key=f"tree_collapse_{step}_{safe_key}", help="Thu gọn"):
                     expanded_set.discard(full_rel)
                     st.rerun()
             else:
-                if st.button("▶", key=f"tree_expand_{step}_{safe_key}", help="Mở rộng"):
+                if st.button("▶", key=f"tree_expand_{step}_{safe_key}", help="Mở rộng (xem file bên cạnh)"):
                     expanded_set.add(full_rel)
+                    st.session_state[f"pipeline_preview_{step}"] = full_rel
                     st.rerun()
         with col_cb:
             is_checked = st.checkbox(
@@ -61,22 +76,47 @@ def _render_tree_node(step: str, relative_path: str, depth: int) -> None:
             else:
                 selected_set.discard(full_rel)
         with col_label:
-            st.markdown(f"{indent}📁 **{name}**")
+            st.markdown(f"📁 **{name}**")
 
         if full_rel in expanded_set:
             _render_tree_node(step, full_rel, depth + 1)
 
 
 def _render_tree_selector(step: str, zone_label: str) -> list[str]:
-    """Hiển thị cây thư mục: ▶ mở rộng xem con/cháu, checkbox chọn thư mục để chạy; để trống = chạy toàn bộ."""
-    st.caption(f"Cây thư mục **{zone_label}** — bấm ▶ để mở rộng, tích checkbox để chọn thư mục (con/cháu) cần chạy; để trống = chạy toàn bộ.")
+    """Cây thư mục trái; bảng file phải tự động hiện khi mở rộng (▶) thư mục."""
     sel_key = f"pipeline_selected_{step}"
     exp_key = f"pipeline_expanded_{step}"
     if sel_key not in st.session_state:
         st.session_state[sel_key] = set()
     if exp_key not in st.session_state:
         st.session_state[exp_key] = set()
-    _render_tree_node(step, "", 0)
+
+    col_tree, col_table = st.columns([1, 1.2])
+    with col_tree:
+        st.caption(f"Cây thư mục **{zone_label}** — bấm ▶ mở rộng (tự hiện file bên phải), tích chọn.")
+        _render_tree_node(step, "", 0)
+
+    with col_table:
+        preview = st.session_state.get(f"pipeline_preview_{step}")
+        if preview:
+            files = get_pipeline_folder_files(step, preview)
+            st.caption(f"**File trong** `{preview}` — ✓ = đã xử lý ở bước này.")
+            if not files:
+                st.info("Thư mục không có file.")
+            else:
+                rows = []
+                for name, sz in files:
+                    done = get_pipeline_file_step_done(step, preview, name)
+                    rows.append({
+                        "Tên file": name,
+                        "Kích thước": _format_size(sz),
+                        "Đã xử lý": done,
+                    })
+                df = pd.DataFrame(rows)
+                st.dataframe(df, use_container_width=True, hide_index=True)
+        else:
+            st.caption("Bấm **▶** bên cạnh thư mục để mở rộng và xem file tại đây.")
+
     return list(st.session_state.get(sel_key, set()))
 
 

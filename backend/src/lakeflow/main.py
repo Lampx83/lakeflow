@@ -12,6 +12,7 @@ from lakeflow.api.system import router as system_router
 from lakeflow.api.qdrant import router as qdrant_router
 from lakeflow.api.admin import router as admin_router
 from lakeflow.api.inbox import router as inbox_router
+from lakeflow.api.admission_agent import router as admission_agent_router
 
 import os
 from pathlib import Path
@@ -82,6 +83,8 @@ def create_app() -> FastAPI:
         prefix="/inbox",
         tags=["inbox"],
     )
+
+    app.include_router(admission_agent_router)
 
     # -------------------------
     # Health check

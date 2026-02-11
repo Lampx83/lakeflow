@@ -9,7 +9,16 @@ def ensure_dir(path: Path) -> None:
 
 
 def atomic_copy(src: Path, dst: Path) -> None:
-    ensure_dir(dst.parent)
-    tmp = dst.with_suffix(dst.suffix + ".tmp")
-    shutil.copy2(src, tmp)
-    os.replace(tmp, dst)
+    src = Path(src)
+    dst = Path(dst).resolve()
+    parent_str = os.path.dirname(os.path.abspath(str(dst)))
+    os.makedirs(parent_str, exist_ok=True)
+    tmp_str = parent_str + os.sep + Path(dst).name + ".tmp"
+    with open(str(src), "rb") as f_in:
+        with open(tmp_str, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+    os.replace(tmp_str, str(dst))
+    try:
+        shutil.copystat(str(src), str(dst))
+    except OSError:
+        pass

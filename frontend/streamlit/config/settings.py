@@ -95,3 +95,11 @@ DATA_ROOT = Path(
         "/data",   # default cho Docker
     )
 ).expanduser().resolve()
+
+# Mô tả mount (hiển thị trong System Settings khi chạy Docker)
+LAKEFLOW_MOUNT_DESCRIPTION = os.getenv("LAKEFLOW_MOUNT_DESCRIPTION", "").strip()
+
+
+def is_running_in_docker() -> bool:
+    """Kiểm tra có đang chạy trong container Docker hay không."""
+    return Path("/.dockerenv").exists()

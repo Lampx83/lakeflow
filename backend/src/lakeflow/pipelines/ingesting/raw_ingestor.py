@@ -4,7 +4,7 @@ from datetime import datetime
 import sqlite3
 
 from lakeflow.common.hashing import sha256_file, TemporaryIOError
-from lakeflow.common.filesystem import atomic_copy
+from lakeflow.common.filesystem import atomic_copy, ensure_dir
 from lakeflow.pipelines.ingesting.models import InboxFile
 from lakeflow.pipelines.ingesting.verifier import verify_hash
 from lakeflow.pipelines.ingesting.deduplicator import hash_exists
@@ -31,6 +31,10 @@ class RawIngestor:
             self._log(src, None, "TEMP_ERROR", str(exc))
             print(f"[INGEST][SKIP] Temporary I/O error, skip file")
             return
+        except OSError as exc:
+            self._log(src, None, "IO_ERROR", str(exc))
+            print(f"[INGEST][SKIP] Không đọc được file (quyền / file khóa / sync): {exc}")
+            return
 
         ext = src.suffix
         raw_path = self.raw_root / domain / f"{file_hash}{ext}"
@@ -44,6 +48,7 @@ class RawIngestor:
 
         # ---------- COPY ----------
         print(f"[INGEST]   Copy to raw: {raw_path}")
+        ensure_dir(raw_path.parent)
         atomic_copy(src, raw_path)
 
         # ---------- VERIFY ----------

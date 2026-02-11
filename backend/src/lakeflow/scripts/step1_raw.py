@@ -11,6 +11,7 @@ load_dotenv()
 
 from lakeflow.runtime.config import runtime_config
 from lakeflow.pipelines.staging.pipeline import run_pdf_staging
+from lakeflow.pipelines.staging.pdf_analyzer import StagingError
 from lakeflow.config import paths
 
 
@@ -79,7 +80,7 @@ def main():
 
     processed = skipped = failed = 0
 
-    pdf_files = list(raw_root.rglob("*.pdf"))
+    pdf_files = [p for p in raw_root.rglob("*") if p.is_file() and p.suffix.lower() == ".pdf"]
     print(f"[DEBUG] Found {len(pdf_files)} PDF files")
 
     for pdf_path in pdf_files:
@@ -109,12 +110,14 @@ def main():
             )
             processed += 1
 
+        except StagingError as exc:
+            failed += 1
+            print(f"[STAGING][ERROR] {pdf_path.name}")
+            print(f"                Lý do: {exc}")
         except Exception as exc:
             failed += 1
-            print(
-                f"[STAGING][ERROR] Failed processing {pdf_path}\n"
-                f"                Reason: {exc}"
-            )
+            print(f"[STAGING][ERROR] {pdf_path.name}")
+            print(f"                Lý do: {type(exc).__name__}: {exc}")
 
     print("=================================")
     print(f"PDF processed : {processed}")

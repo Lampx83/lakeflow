@@ -1,6 +1,19 @@
 import requests
 from config.settings import API_BASE
 
+
+def get_data_path_from_api() -> str | None:
+    """Lấy Data Lake root path từ backend (đúng với LAKEFLOW_DATA_BASE_PATH backend đang dùng)."""
+    try:
+        resp = requests.get(f"{API_BASE}/system/data-path", timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get("data_base_path")
+    except Exception:
+        pass
+    return None
+
+
 def login(username: str, password: str) -> str | None:
     resp = requests.post(
         f"{API_BASE}/auth/login",

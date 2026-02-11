@@ -45,7 +45,7 @@ def _list_folders_for_step(step: str) -> list[str]:
         elif step == "step1":
             raw = paths.raw_path()
             if raw.exists():
-                out = sorted({p.stem for p in raw.rglob("*.pdf")})
+                out = sorted({p.stem for p in raw.rglob("*") if p.is_file() and p.suffix.lower() == ".pdf"})
         elif step == "step2":
             staging = paths.staging_path()
             if staging.exists():

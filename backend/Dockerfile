@@ -30,6 +30,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ---------- Project ----------
 COPY . .
 
+# ---------- Entrypoint: tạo thư mục /data (500_catalog, ...) và chmod để tránh "unable to open database file" ----------
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+
 # ---------- Env ----------
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/src

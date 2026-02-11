@@ -62,6 +62,8 @@ services:
     ports:
       - "8012:8012"
     volumes:
+      # Mount source for hot-reload when developing (sửa code → Streamlit tự rerun nhờ runOnSave trong .streamlit/config.toml)
+      - ./frontend/streamlit:/app
       - ./backend:/app/backend
       - lakeflow_data:/data
     restart: unless-stopped
